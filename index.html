@@ -172,7 +172,7 @@
             box-sizing: border-box;
         }
         #nalog-calc .billion-display {
-            font-size: 1rem;
+            font-size: 1.01rem;
             color: #94a3b8;
             font-weight: bold;
             white-space: nowrap;
@@ -330,7 +330,7 @@
     <div class="field desired-field">
       <label>Запрос ресурсов:</label>
       <div class="desired-wrapper">
-        <input type="text" id="desired" inputmode="numeric" pattern="[0-9]*" maxlength="15" placeholder="0" autocomplete="off">
+        <input type="text" id="desired" inputmode="decimal" pattern="[0-9,.]*" maxlength="6" placeholder="0" autocomplete="off">
         <span id="desiredBillion" class="billion-display">0,000 млрд</span>
       </div>
     </div>
@@ -442,7 +442,10 @@ function checkSecret() {
     }
 }
 
+// ────────────────────────────────────────────────
 // Логика калькулятора налога
+// ────────────────────────────────────────────────
+
 const hallSelect = document.getElementById('hall-level');
 const taxRateEl = document.getElementById('tax-rate');
 const capacityEl = document.getElementById('capacity');
@@ -462,25 +465,29 @@ const levelsData = {
   25: { tax: 10, cap: 8000000 }
 };
 
-function updateLevelInfo() {
-  const lvl = hallSelect.value;
-  const data = levelsData[lvl];
-  taxRateEl.textContent = data.tax + '%';
-  capacityEl.textContent = formatNumber(data.cap);
-  calculate();
-}
-
-function formatNumber(num) {
+function formatCapacity(num) {
   return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
 
-function parseFormatted(str) {
-  return parseInt(str.replace(/\./g, '')) || 0;
+function formatMillions(num) {
+  if (num <= 0) return "0";
+  const fixed = num.toFixed(3);
+  const [intP, decP = "000"] = fixed.split('.');
+  if (decP === "000") return intP;
+  return intP + "," + decP;
 }
 
-function formatMillion(num) {
-  if (num === 0) return "0";
-  return (num / 1000000).toFixed(3);
+function formatResource(numUnits) {
+  if (numUnits <= 0) return "0";
+  const millions = numUnits / 1000000;
+  return millions.toFixed(3).replace('.', ',');
+}
+
+// Новая функция — только целые миллионы без дробной части
+function formatWholeMillions(numUnits) {
+  if (numUnits <= 0) return "0";
+  const millions = Math.floor(numUnits / 1000000);
+  return millions.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 }
 
 function formatBillion(num) {
@@ -488,13 +495,30 @@ function formatBillion(num) {
   return (num / 1000000000).toFixed(3).replace('.', ',');
 }
 
+function updateLevelInfo() {
+  const lvl = hallSelect.value;
+  const data = levelsData[lvl];
+  taxRateEl.textContent = data.tax + '%';
+  capacityEl.textContent = formatCapacity(data.cap);
+  calculate();
+}
+
 desiredInput.addEventListener('input', e => {
-  let val = e.target.value.replace(/\D/g, '');
-  if (val.startsWith('0') && val.length > 1) {
-    val = val.replace(/^0+/, '');
+  const input = e.target;
+  let val = input.value;
+  let clean = '';
+  let hasComma = false;
+  for (const char of val) {
+    if (/\d/.test(char)) {
+      clean += char;
+    } else if (char === ',' && !hasComma) {
+      clean += char;
+      hasComma = true;
+    }
   }
-  if (val === '') val = '0';
-  e.target.value = formatNumber(val);
+  const numStr = clean.replace(',', '.');
+  const num = parseFloat(numStr) || 0;
+  input.value = formatMillions(num);
   calculate();
 });
 
@@ -505,9 +529,12 @@ function calculate() {
   const data = levelsData[lvl];
   const taxPct = data.tax / 100;
   const cap = data.cap;
-  const desiredRaw = parseFormatted(desiredInput.value);
 
-  // Отображаем в миллиардах рядом с полем ввода
+  const inputVal = desiredInput.value;
+  const cleanVal = inputVal.replace(',', '.');
+  const millions = parseFloat(cleanVal) || 0;
+  const desiredRaw = Math.round(millions * 1000000);
+
   desiredBillionEl.textContent = formatBillion(desiredRaw) + " млрд";
 
   if (desiredRaw <= 0 || cap <= 0) {
@@ -518,21 +545,21 @@ function calculate() {
     return;
   }
 
-  // Все значения в миллионах с точкой
-  sentEl.textContent     = formatMillion(desiredRaw);
-  const tax              = Math.round(desiredRaw * taxPct);
-  const total            = desiredRaw + tax;
+  const sent = desiredRaw;
+  const tax = Math.round(desiredRaw * taxPct);
+  const total = desiredRaw + tax;
 
-  taxEl.textContent      = formatMillion(tax)     + " (" + data.tax + "%)";
-  totalSumEl.textContent = formatMillion(total);
+  // Целые числа без дробной части
+  sentEl.textContent = formatWholeMillions(sent);
+  taxEl.textContent = formatWholeMillions(tax) + " (" + data.tax + "%)";
+  totalSumEl.textContent = formatWholeMillions(total);
 
-  // Кол-во отправки (поездки + остаток)
+  // Кол-во отправки (здесь оставляем формат с ,000)
   const fullTrips = Math.floor(desiredRaw / cap);
   const remainder = desiredRaw - fullTrips * cap;
-
   let tripsText = fullTrips.toString();
   if (remainder > 0) {
-    tripsText += " + " + formatMillion(remainder);
+    tripsText += " + " + formatResource(remainder);
   }
   tripsEl.textContent = tripsText;
 }
@@ -547,6 +574,4 @@ if (window.Telegram && Telegram.WebApp) {
 </script>
 
 </body>
-
 </html>
-
