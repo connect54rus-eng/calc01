@@ -323,7 +323,7 @@
 
       <div class="level-block">
         <label>Вместимость припасов</label>
-        <div class="info" id="capacity">6.500.000</div>
+        <div class="info" id="capacity">6 500 000</div>
       </div>
     </div>
 
@@ -466,7 +466,7 @@ const levelsData = {
 };
 
 function formatCapacity(num) {
-  return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 }
 
 function formatMillions(num) {
@@ -477,22 +477,34 @@ function formatMillions(num) {
   return intP + "," + decP;
 }
 
-function formatResource(numUnits) {
+function formatSmartMillions(numUnits) {
+  if (numUnits <= 0) return "0";
+  const millions = numUnits / 1000000;
+  let fixed = millions.toFixed(3);
+  let cleaned = fixed.replace(/0+$/, '');
+  if (cleaned.endsWith('.')) cleaned = cleaned.slice(0, -1);
+  let withComma = cleaned.replace('.', ',');
+  let parts = withComma.split(',');
+  let intP = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  if (parts.length > 1 && parts[1]) {
+    return intP + "," + parts[1];
+  }
+  return intP;
+}
+
+function formatRemainder(numUnits) {
   if (numUnits <= 0) return "0";
   const millions = numUnits / 1000000;
   return millions.toFixed(3).replace('.', ',');
 }
 
-// Новая функция — только целые миллионы без дробной части
-function formatWholeMillions(numUnits) {
-  if (numUnits <= 0) return "0";
-  const millions = Math.floor(numUnits / 1000000);
-  return millions.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
-}
-
 function formatBillion(num) {
   if (num === 0) return "0,000";
-  return (num / 1000000000).toFixed(3).replace('.', ',');
+  const billions = num / 1000000000;
+  let fixed = billions.toFixed(3);
+  let cleaned = fixed.replace(/0+$/, '');
+  if (cleaned.endsWith('.')) cleaned = cleaned.slice(0, -1);
+  return cleaned.replace('.', ',');
 }
 
 function updateLevelInfo() {
@@ -549,17 +561,15 @@ function calculate() {
   const tax = Math.round(desiredRaw * taxPct);
   const total = desiredRaw + tax;
 
-  // Целые числа без дробной части
-  sentEl.textContent = formatWholeMillions(sent);
-  taxEl.textContent = formatWholeMillions(tax) + " (" + data.tax + "%)";
-  totalSumEl.textContent = formatWholeMillions(total);
+  sentEl.textContent = formatSmartMillions(sent);
+  taxEl.textContent = formatSmartMillions(tax) + " (" + data.tax + "%)";
+  totalSumEl.textContent = formatSmartMillions(total);
 
-  // Кол-во отправки (здесь оставляем формат с ,000)
   const fullTrips = Math.floor(desiredRaw / cap);
   const remainder = desiredRaw - fullTrips * cap;
-  let tripsText = fullTrips.toString();
+  let tripsText = fullTrips.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
   if (remainder > 0) {
-    tripsText += " + " + formatResource(remainder);
+    tripsText += " + " + formatRemainder(remainder);
   }
   tripsEl.textContent = tripsText;
 }
@@ -575,4 +585,3 @@ if (window.Telegram && Telegram.WebApp) {
 
 </body>
 </html>
-
